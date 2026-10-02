@@ -425,7 +425,8 @@ function renderKanbanView(container: HTMLElement, lists: List[], allCards: Card[
         <div class="list-header">
           <input type="color" class="list-color-picker" data-list-id="${list.id}" value="${list.color || '#3b82f6'}" style="width: 16px; height: 16px; border: none; padding: 0; background: transparent; cursor: pointer; margin-right: 8px;">
           <span style="flex:1;">${list.name}</span>
-          <button class="btn-icon edit-list-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px;"><i class="ph ph-pencil"></i></button>
+          <button class="btn-icon edit-list-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px;" title="Editar"><i class="ph ph-pencil"></i></button>
+          <button class="btn-icon delete-list-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px; margin-left:4px; color:#ef4444;" title="Excluir"><i class="ph ph-trash"></i></button>
         </div>
         <div class="list-cards-container" data-list-id="${list.id}" style="min-height: 50px;">
           ${cardsHtml}
@@ -1434,6 +1435,22 @@ function setupKanbanEvents() {
       if (newName && newName.trim() !== '') {
         list.name = newName.trim();
         await listRepo.update(list);
+        renderBoard();
+      }
+    });
+  });
+
+  document.querySelectorAll('.delete-list-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-list-id');
+      if (!id) return;
+      if (confirm("Tem certeza que deseja excluir esta lista? Todos os cards nela também serão excluídos.")) {
+        const allCards = await cardRepo.getAll();
+        const listCards = allCards.filter(c => c.listId === id);
+        for (const c of listCards) {
+          await cardRepo.delete(c.id);
+        }
+        await listRepo.delete(id);
         renderBoard();
       }
     });
