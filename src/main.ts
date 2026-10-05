@@ -397,11 +397,14 @@ function renderKanbanView(container: HTMLElement, lists: List[], allCards: Card[
 
       cardsHtml += `
         <div class="kanban-card ${card.completed ? 'completed' : ''}" draggable="true" data-card-id="${card.id}" style="${card.completed ? 'opacity: 0.7;' : ''} ${card.cover?.color ? `background:${card.cover.color}; border:none; box-shadow:0 4px 6px rgba(0,0,0,0.3);` : ''}">
-          <div class="card-title-wrapper">
-            <button class="card-complete-btn" data-card-id="${card.id}" title="Marcar como concluído">
-               <i class="ph ${card.completed ? 'ph-check-circle' : 'ph-circle'}"></i>
-            </button>
-            <p class="card-title" style="${card.cover?.color ? 'color:#fff;' : ''}">${card.title}</p>
+          <div class="card-title-wrapper" style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="display:flex; gap:4px; align-items:flex-start;">
+              <button class="card-complete-btn" data-card-id="${card.id}" title="Marcar como concluído" style="margin-top:2px;">
+                 <i class="ph ${card.completed ? 'ph-check-circle' : 'ph-circle'}"></i>
+              </button>
+              <p class="card-title" style="${card.cover?.color ? 'color:#fff;' : ''}">${card.mirrorGroupId ? '<i class="ph ph-intersect" title="Card Espelhado" style="color:var(--accent-primary); margin-right:4px;"></i>' : ''}${card.title}</p>
+            </div>
+            <button class="btn-icon card-quick-edit-btn" data-card-id="${card.id}" style="padding:2px; font-size:16px; margin-top:-4px; margin-right:-4px; ${card.cover?.color ? 'color:#fff;' : 'color:var(--text-muted);'}"><i class="ph ph-dots-three"></i></button>
           </div>
           ${card.description ? (() => {
             const strippedDesc = card.description.replace(/<[^>]*>?/gm, '').trim();
@@ -421,19 +424,33 @@ function renderKanbanView(container: HTMLElement, lists: List[], allCards: Card[
     });
 
     html += `
-      <div class="kanban-list" data-list-id="${list.id}" draggable="true" style="border-top: 4px solid ${list.color || '#3b82f6'};">
-        <div class="list-header">
-          <input type="color" class="list-color-picker" data-list-id="${list.id}" value="${list.color || '#3b82f6'}" style="width: 16px; height: 16px; border: none; padding: 0; background: transparent; cursor: pointer; margin-right: 8px;">
-          <span style="flex:1;">${list.name}</span>
-          <button class="btn-icon edit-list-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px;" title="Editar"><i class="ph ph-pencil"></i></button>
-          <button class="btn-icon delete-list-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px; margin-left:4px; color:#ef4444;" title="Excluir"><i class="ph ph-trash"></i></button>
+      <div class="kanban-list ${list.collapsed ? 'collapsed' : ''}" data-list-id="${list.id}" draggable="true" style="border-top: 4px solid ${list.color || '#3b82f6'};">
+        
+        <div class="list-expanded-content">
+          <div class="list-header">
+            <button class="btn-icon toggle-collapse-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px; margin-right:4px;" title="Recolher Lista"><i class="ph ph-arrows-in-line-horizontal"></i></button>
+            <input type="color" class="list-color-picker" data-list-id="${list.id}" value="${list.color || '#3b82f6'}" style="width: 16px; height: 16px; border: none; padding: 0; background: transparent; cursor: pointer; margin-right: 4px;">
+            <span style="flex:1; display:flex; align-items:center;">${list.name} <span class="list-count-badge">${listCards.length}</span></span>
+            <button class="btn-icon edit-list-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px;" title="Editar"><i class="ph ph-pencil"></i></button>
+            <button class="btn-icon delete-list-btn" data-list-id="${list.id}" style="padding:2px; font-size:14px; margin-left:4px; color:#ef4444;" title="Excluir"><i class="ph ph-trash"></i></button>
+          </div>
+          <div class="list-cards-container" data-list-id="${list.id}" style="min-height: 50px;">
+            ${cardsHtml}
+          </div>
+          <button class="add-card-btn" data-list-id="${list.id}">
+            <i class="ph ph-plus"></i> Adicionar Card
+          </button>
         </div>
-        <div class="list-cards-container" data-list-id="${list.id}" style="min-height: 50px;">
-          ${cardsHtml}
+
+        <div class="list-collapsed-content toggle-collapse-btn" data-list-id="${list.id}" title="Expandir Lista">
+          <button class="btn-icon" style="color: var(--text-muted); padding:4px;"><i class="ph ph-arrows-out-line-horizontal"></i></button>
+          <div class="collapsed-color" style="background: ${list.color || '#3b82f6'};"></div>
+          <div class="collapsed-title" style="display:flex; align-items:center; gap:8px;">
+            ${list.name}
+            <span class="list-count-badge" style="transform: rotate(180deg); margin:0;">${listCards.length}</span>
+          </div>
         </div>
-        <button class="add-card-btn" data-list-id="${list.id}">
-          <i class="ph ph-plus"></i> Adicionar Card
-        </button>
+
       </div>
     `;
   });
@@ -823,7 +840,7 @@ function setupModalHtml() {
       
       if (currentOpenedCard && currentOpenedCard.customFields.labels) {
         currentOpenedCard.customFields.labels = currentOpenedCard.customFields.labels.filter((l:any) => l.id !== editingId);
-        await cardRepo.update(currentOpenedCard);
+        await updateCardWithMirrors(currentOpenedCard);
       }
 
       renderModalLabels();
@@ -899,7 +916,7 @@ function setupModalHtml() {
     }
     
     currentOpenedCard.customFields.links.push({ id: uuidv4(), alias, url });
-    await cardRepo.update(currentOpenedCard);
+    await updateCardWithMirrors(currentOpenedCard);
     
     aliasInput.value = '';
     urlInput.value = '';
@@ -918,7 +935,7 @@ function setupModalHtml() {
     }
     
     currentOpenedCard.customFields.commentsList.push({ id: uuidv4(), text, createdAt: Date.now() });
-    await cardRepo.update(currentOpenedCard);
+    await updateCardWithMirrors(currentOpenedCard);
     
     quillCommentInstance.setContents([]);
     renderComments();
@@ -1037,6 +1054,7 @@ async function openCardModal(cardId: string) {
   renderChecklist();
   renderLinks();
   renderComments();
+  renderModalLabels();
   document.getElementById('card-modal')?.classList.add('active');
 }
 
@@ -1062,7 +1080,7 @@ function renderLinks() {
       const idx = Number((e.currentTarget as HTMLElement).getAttribute('data-index'));
       if (currentOpenedCard && currentOpenedCard.customFields.links) {
         currentOpenedCard.customFields.links.splice(idx, 1);
-        await cardRepo.update(currentOpenedCard);
+        await updateCardWithMirrors(currentOpenedCard);
         renderLinks();
         renderBoard();
       }
@@ -1103,7 +1121,7 @@ function renderComments() {
       const idx = Number((e.currentTarget as HTMLElement).getAttribute('data-index'));
       if (currentOpenedCard && currentOpenedCard.customFields.commentsList) {
         currentOpenedCard.customFields.commentsList.splice(idx, 1);
-        await cardRepo.update(currentOpenedCard);
+        await updateCardWithMirrors(currentOpenedCard);
         renderComments();
       }
     });
@@ -1118,7 +1136,7 @@ function renderComments() {
         
         // Remove from list so user can re-save it
         currentOpenedCard.customFields.commentsList.splice(idx, 1);
-        await cardRepo.update(currentOpenedCard);
+        await updateCardWithMirrors(currentOpenedCard);
         renderComments();
       }
     });
@@ -1149,7 +1167,7 @@ function renderChecklist() {
       const isChecked = (e.target as HTMLInputElement).checked;
       if (currentOpenedCard && currentOpenedCard.customFields.tasks) {
         currentOpenedCard.customFields.tasks[idx].done = isChecked;
-        await cardRepo.update(currentOpenedCard);
+        await updateCardWithMirrors(currentOpenedCard);
         renderChecklist();
       }
     });
@@ -1160,7 +1178,7 @@ function renderChecklist() {
       const idx = Number((e.currentTarget as HTMLElement).getAttribute('data-index'));
       if (currentOpenedCard && currentOpenedCard.customFields.tasks) {
         currentOpenedCard.customFields.tasks.splice(idx, 1);
-        await cardRepo.update(currentOpenedCard);
+        await updateCardWithMirrors(currentOpenedCard);
         renderChecklist();
       }
     });
@@ -1177,7 +1195,7 @@ async function handleAddTask() {
   }
   
   currentOpenedCard.customFields.tasks.push({ id: uuidv4(), title: title.trim(), done: false });
-  await cardRepo.update(currentOpenedCard);
+  await updateCardWithMirrors(currentOpenedCard);
   renderChecklist();
 }
 
@@ -1205,7 +1223,7 @@ async function saveCardModal() {
 
   currentOpenedCard.updatedAt = Date.now();
 
-  await cardRepo.update(currentOpenedCard);
+  await updateCardWithMirrors(currentOpenedCard);
   closeCardModal();
   await renderBoard();
 }
@@ -1253,6 +1271,34 @@ function setupKanbanEvents() {
   const containers = document.querySelectorAll('.list-cards-container');
   const addBtns = document.querySelectorAll('.add-card-btn');
 
+  document.querySelectorAll('.card-quick-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cardId = (e.currentTarget as HTMLElement).getAttribute('data-card-id');
+      if (cardId) openQuickEditMenu(cardId, e.currentTarget as HTMLElement);
+    });
+  });
+
+
+  document.querySelectorAll('.toggle-collapse-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const listId = (e.currentTarget as HTMLElement).getAttribute('data-list-id');
+      if (!listId) return;
+      
+      const listEl = document.querySelector(`.kanban-list[data-list-id="${listId}"]`);
+      if (listEl) {
+        listEl.classList.toggle('collapsed');
+      }
+
+      const list = await listRepo.get(listId);
+      if (list) {
+        list.collapsed = !list.collapsed;
+        await listRepo.update(list);
+      }
+    });
+  });
+
   addBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
       const listId = (e.currentTarget as HTMLElement).getAttribute('data-list-id');
@@ -1268,7 +1314,7 @@ function setupKanbanEvents() {
       const dbCard = await cardRepo.get(cardId);
       if (dbCard) {
         dbCard.completed = !dbCard.completed;
-        await cardRepo.update(dbCard);
+        await updateCardWithMirrors(dbCard);
         renderBoard();
       }
     });
@@ -1307,7 +1353,7 @@ function setupKanbanEvents() {
         const oldListId = dbCard.listId;
         dbCard.listId = newListId;
         dbCard.position = newIndex;
-        await cardRepo.update(dbCard);
+        await updateCardWithMirrors(dbCard);
         
         const allCardsInDb = await cardRepo.getAll();
         const listCardsInDb = allCardsInDb.filter(c => c.listId === newListId && c.id !== cardId).sort((a,b) => a.position - b.position);
@@ -1318,7 +1364,7 @@ function setupKanbanEvents() {
           const matchingDbCard = listCardsInDb.find(c => c.id === id);
           if (matchingDbCard) {
             matchingDbCard.position = i;
-            await cardRepo.update(matchingDbCard);
+            await updateCardWithMirrors(matchingDbCard);
           }
         }
 
@@ -1397,11 +1443,47 @@ function setupKanbanEvents() {
       const afterElement = getDragAfterListElement(boardContainer, (e as DragEvent).clientX);
       const btnAddList = document.getElementById('btn-add-new-list');
       
-      if (afterElement == null) {
-        if (btnAddList) boardContainer.insertBefore(draggableList, btnAddList);
-        else boardContainer.appendChild(draggableList);
-      } else {
-        boardContainer.insertBefore(draggableList, afterElement);
+      const currentNextSibling = draggableList.nextElementSibling;
+      const targetNextSibling = afterElement || btnAddList || null;
+      
+      if (currentNextSibling !== targetNextSibling) {
+        const lists = Array.from(boardContainer.querySelectorAll('.kanban-list'));
+        const rects = new Map();
+        
+        // First
+        lists.forEach(l => {
+          rects.set(l, l.getBoundingClientRect());
+        });
+        
+        // DOM Change
+        if (afterElement == null) {
+          if (btnAddList) boardContainer.insertBefore(draggableList, btnAddList);
+          else boardContainer.appendChild(draggableList);
+        } else {
+          boardContainer.insertBefore(draggableList, afterElement);
+        }
+        
+        // Last, Invert, Play
+        lists.forEach(l => {
+          const oldRect = rects.get(l);
+          
+          (l as HTMLElement).style.transform = 'none';
+          (l as HTMLElement).style.transition = 'none';
+          
+          const newRect = l.getBoundingClientRect();
+          const deltaX = oldRect.left - newRect.left;
+          
+          if (deltaX !== 0) {
+            (l as HTMLElement).style.transform = `translateX(${deltaX}px)`;
+            
+            l.getBoundingClientRect(); // force reflow
+            
+            requestAnimationFrame(() => {
+              (l as HTMLElement).style.transform = '';
+              (l as HTMLElement).style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
+            });
+          }
+        });
       }
     });
   }
@@ -1571,6 +1653,237 @@ async function handleImportData(e: Event) {
   };
   reader.readAsText(file);
 }
+
+
+async function updateCardWithMirrors(updatedCard: any) {
+  await cardRepo.update(updatedCard);
+  if (!updatedCard.mirrorGroupId) return;
+  
+  const allCards = await cardRepo.getAll();
+  const mirrors = allCards.filter((c:any) => c.mirrorGroupId === updatedCard.mirrorGroupId && c.id !== updatedCard.id);
+  for (const mirror of mirrors) {
+    mirror.title = updatedCard.title;
+    mirror.description = updatedCard.description;
+    mirror.members = [...updatedCard.members];
+    mirror.labels = [...updatedCard.labels];
+    mirror.startDate = updatedCard.startDate;
+    mirror.dueDate = updatedCard.dueDate;
+    mirror.dueTime = updatedCard.dueTime;
+    mirror.completed = updatedCard.completed;
+    mirror.cover = JSON.parse(JSON.stringify(updatedCard.cover));
+    mirror.checklists = [...updatedCard.checklists];
+    mirror.attachments = [...updatedCard.attachments];
+    mirror.customFields = JSON.parse(JSON.stringify(updatedCard.customFields));
+    mirror.comments = [...updatedCard.comments];
+    mirror.watchers = [...updatedCard.watchers];
+    mirror.dependencies = [...updatedCard.dependencies];
+    mirror.location = updatedCard.location ? JSON.parse(JSON.stringify(updatedCard.location)) : null;
+    mirror.archived = updatedCard.archived;
+    mirror.updatedAt = Date.now();
+    await cardRepo.update(mirror);
+  }
+}
+
+
+
+let currentQuickEditCard: any = null;
+
+function setupQuickEditOverlay() {
+  if (document.getElementById('quick-edit-overlay')) return;
+  const overlayHtml = `
+    <div id="quick-edit-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9998; backdrop-filter:blur(2px);"></div>
+    <div id="quick-edit-menu" style="display:none; position:fixed; z-index:9999; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:12px; box-shadow:0 8px 30px rgba(0,0,0,0.5); width:200px; flex-direction:column; gap:8px;">
+      
+      <button class="quick-edit-option" id="qe-btn-color" style="background:transparent; border:none; color:var(--text-primary); padding:8px; text-align:left; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px;"><i class="ph ph-palette"></i> Alterar Cor</button>
+      <div id="qe-color-picker" style="display:none; flex-wrap:wrap; gap:4px; padding:4px;">
+          <button class="qe-cover-btn" data-bg="transparent" style="width:24px; height:24px; border-radius:4px; border:1px solid var(--border-subtle); background:transparent; cursor:pointer;" title="Remover Capa"></button>
+          <button class="qe-cover-btn" data-bg="linear-gradient(135deg, #3b82f6, #8b5cf6)" style="width:24px; height:24px; border-radius:4px; border:none; background:linear-gradient(135deg, #3b82f6, #8b5cf6); cursor:pointer;"></button>
+          <button class="qe-cover-btn" data-bg="linear-gradient(135deg, #10b981, #059669)" style="width:24px; height:24px; border-radius:4px; border:none; background:linear-gradient(135deg, #10b981, #059669); cursor:pointer;"></button>
+          <button class="qe-cover-btn" data-bg="linear-gradient(135deg, #f59e0b, #ea580c)" style="width:24px; height:24px; border-radius:4px; border:none; background:linear-gradient(135deg, #f59e0b, #ea580c); cursor:pointer;"></button>
+          <button class="qe-cover-btn" data-bg="linear-gradient(135deg, #ec4899, #e11d48)" style="width:24px; height:24px; border-radius:4px; border:none; background:linear-gradient(135deg, #ec4899, #e11d48); cursor:pointer;"></button>
+          <button class="qe-cover-btn" data-bg="linear-gradient(135deg, #64748b, #334155)" style="width:24px; height:24px; border-radius:4px; border:none; background:linear-gradient(135deg, #64748b, #334155); cursor:pointer;"></button>
+          <button class="qe-cover-btn" data-bg="linear-gradient(135deg, #111827, #000000)" style="width:24px; height:24px; border-radius:4px; border:none; background:linear-gradient(135deg, #111827, #000000); cursor:pointer;"></button>
+      </div>
+      
+      <button class="quick-edit-option" id="qe-btn-tags" style="background:transparent; border:none; color:var(--text-primary); padding:8px; text-align:left; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px;"><i class="ph ph-tag"></i> Editar Tags</button>
+      <div id="qe-tags-picker" style="display:none; flex-direction:column; gap:4px; padding:4px;"></div>
+      
+      <button class="quick-edit-option" id="qe-btn-mirror" style="background:transparent; border:none; color:var(--text-primary); padding:8px; text-align:left; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px;"><i class="ph ph-intersect"></i> Criar Espelho</button>
+      <button class="quick-edit-option" id="qe-btn-duplicate" style="background:transparent; border:none; color:var(--text-primary); padding:8px; text-align:left; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px;"><i class="ph ph-files"></i> Duplicar</button>
+      <button class="quick-edit-option" id="qe-btn-delete-mirrors" style="background:transparent; border:none; color:var(--text-primary); padding:8px; text-align:left; border-radius:var(--radius-sm); cursor:pointer; display:none; align-items:center; gap:8px; font-size:13px;"><i class="ph ph-scissors"></i> Remover Espelhos</button>
+      <div style="height:1px; background:var(--border-subtle); margin:4px 0;"></div>
+      <button class="quick-edit-option" id="qe-btn-delete" style="background:transparent; border:none; color:#ef4444; padding:8px; text-align:left; border-radius:var(--radius-sm); cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px;"><i class="ph ph-trash"></i> Excluir</button>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', overlayHtml);
+  
+  document.getElementById('quick-edit-overlay')?.addEventListener('click', closeQuickEditMenu);
+
+  document.getElementById('qe-btn-color')?.addEventListener('click', () => {
+    const p = document.getElementById('qe-color-picker')!;
+    p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
+  });
+
+  document.getElementById('qe-btn-tags')?.addEventListener('click', async () => {
+    const p = document.getElementById('qe-tags-picker')!;
+    if (p.style.display === 'flex') {
+      p.style.display = 'none';
+    } else {
+      p.style.display = 'flex';
+      await renderQETags();
+    }
+  });
+
+  document.querySelectorAll('.qe-cover-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      if (!currentQuickEditCard) return;
+      const bg = (e.currentTarget as HTMLElement).getAttribute('data-bg');
+      if (bg === 'transparent') {
+        currentQuickEditCard.cover = {};
+      } else {
+        currentQuickEditCard.cover = { color: bg || undefined };
+      }
+      await updateCardWithMirrors(currentQuickEditCard);
+      renderBoard();
+    });
+  });
+
+  document.getElementById('qe-btn-mirror')?.addEventListener('click', async () => {
+    if (!currentQuickEditCard || !currentBoardId) return;
+    
+    if (!currentQuickEditCard.mirrorGroupId) {
+      currentQuickEditCard.mirrorGroupId = uuidv4();
+      await updateCardWithMirrors(currentQuickEditCard);
+    }
+
+    const clonedCard = JSON.parse(JSON.stringify(currentQuickEditCard));
+    clonedCard.id = uuidv4();
+    clonedCard.createdAt = Date.now();
+    clonedCard.updatedAt = Date.now();
+    await cardRepo.create(clonedCard);
+    
+    closeQuickEditMenu();
+    renderBoard();
+  });
+
+  
+  
+  document.getElementById('qe-btn-delete-mirrors')?.addEventListener('click', async () => {
+    if (!currentQuickEditCard || !currentQuickEditCard.mirrorGroupId) return;
+    if (confirm("Tem certeza que deseja excluir todas as cópias espelhadas deste cartão? O cartão atual será mantido e deixará de ser um espelho.")) {
+      const allCards = await cardRepo.getAll();
+      const mirrors = allCards.filter((c:any) => c.mirrorGroupId === currentQuickEditCard.mirrorGroupId && c.id !== currentQuickEditCard.id);
+      
+      for (const m of mirrors) {
+        await cardRepo.delete(m.id);
+      }
+      
+      currentQuickEditCard.mirrorGroupId = undefined;
+      await cardRepo.update(currentQuickEditCard);
+      
+      closeQuickEditMenu();
+      renderBoard();
+    }
+  });
+
+  document.getElementById('qe-btn-delete')?.addEventListener('click', async () => {
+    if (!currentQuickEditCard) return;
+    if (confirm("Tem certeza que deseja excluir este cartão?")) {
+      await cardRepo.delete(currentQuickEditCard.id);
+      closeQuickEditMenu();
+      renderBoard();
+    }
+  });
+
+  document.getElementById('qe-btn-duplicate')?.addEventListener('click', async () => {
+    if (!currentQuickEditCard || !currentBoardId) return;
+    const clonedCard = JSON.parse(JSON.stringify(currentQuickEditCard));
+    clonedCard.id = uuidv4();
+    clonedCard.mirrorGroupId = undefined;
+    clonedCard.createdAt = Date.now();
+    clonedCard.updatedAt = Date.now();
+    await cardRepo.create(clonedCard);
+    
+    closeQuickEditMenu();
+    renderBoard();
+  });
+}
+
+async function renderQETags() {
+  if (!currentQuickEditCard || !currentBoardId) return;
+  const board = await boardRepo.get(currentBoardId);
+  const boardLabels = board?.labels || [];
+  const activeLabels = currentQuickEditCard.customFields.labels || [];
+  
+  const p = document.getElementById('qe-tags-picker')!;
+  let html = '';
+  boardLabels.forEach(lbl => {
+    const isActive = activeLabels.some((a:any) => a.id === lbl.id);
+    html += `
+      <div class="qe-tag-item" data-id="${lbl.id}" style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px; cursor:pointer; background:${isActive ? 'var(--bg-surface-hover)' : 'transparent'};">
+         <div style="width:12px; height:12px; border-radius:50%; background:${lbl.color};"></div>
+         <span style="font-size:12px; flex:1;">${lbl.name}</span>
+         <i class="ph ${isActive ? 'ph-check' : ''}" style="color:var(--accent-primary)"></i>
+      </div>
+    `;
+  });
+  p.innerHTML = html;
+
+  p.querySelectorAll('.qe-tag-item').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      const lblId = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      const lblObj = boardLabels.find((l:any) => l.id === lblId);
+      if (!lblObj || !currentQuickEditCard) return;
+
+      if (!currentQuickEditCard.customFields.labels) currentQuickEditCard.customFields.labels = [];
+      const isAlreadyActive = currentQuickEditCard.customFields.labels.some((l:any) => l.id === lblId);
+      
+      if (isAlreadyActive) {
+        currentQuickEditCard.customFields.labels = currentQuickEditCard.customFields.labels.filter((l:any) => l.id !== lblId);
+      } else {
+        currentQuickEditCard.customFields.labels.push(lblObj);
+      }
+      await updateCardWithMirrors(currentQuickEditCard);
+      renderQETags();
+      renderBoard();
+    });
+  });
+}
+
+async function openQuickEditMenu(cardId: string, btnElement: HTMLElement) {
+  setupQuickEditOverlay();
+  const card = await cardRepo.get(cardId);
+  if (!card) return;
+  currentQuickEditCard = card;
+
+  const rect = btnElement.getBoundingClientRect();
+  const menu = document.getElementById('quick-edit-menu')!;
+  
+  menu.style.display = 'flex';
+  menu.style.top = rect.bottom + 'px';
+  menu.style.left = (rect.left - 150) + 'px';
+
+  document.getElementById('quick-edit-overlay')!.style.display = 'block';
+  document.getElementById('qe-color-picker')!.style.display = 'none';
+  document.getElementById('qe-tags-picker')!.style.display = 'none';
+
+  const btnDeleteMirrors = document.getElementById('qe-btn-delete-mirrors');
+  if (btnDeleteMirrors) {
+    if (card.mirrorGroupId) {
+      btnDeleteMirrors.style.display = 'flex';
+    } else {
+      btnDeleteMirrors.style.display = 'none';
+    }
+  }
+
+}
+
+function closeQuickEditMenu() {
+  document.getElementById('quick-edit-overlay')!.style.display = 'none';
+  document.getElementById('quick-edit-menu')!.style.display = 'none';
+  currentQuickEditCard = null;
+}
+
 
 initApp();
 

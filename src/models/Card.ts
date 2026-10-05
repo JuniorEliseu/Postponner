@@ -30,6 +30,7 @@ export interface Card {
   dependencies: string[]; // array of dependency IDs
   location: CardLocation | null;
   archived: boolean;
+  mirrorGroupId?: string;
   createdAt: number;
   updatedAt: number;
 }
